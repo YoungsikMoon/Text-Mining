@@ -1,0 +1,160 @@
+# 라이브러리 import
+
+from selenium import webdriver
+from selenium.webdriver import ActionChains
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.support.ui import WebDriverWait
+
+import pandas as pd
+from openpyxl import Workbook #?
+import time
+
+import requests
+from bs4 import BeautifulSoup as bs
+import json
+
+import warnings
+from tqdm import tqdm
+
+# 초기설정
+driver=webdriver.Chrome()
+
+variable_url = 'https://www.bomtoon.com/user/login'
+driver.get(variable_url)
+
+time.sleep(3)
+
+driver.find_element(By.XPATH,'//*[@id="__next"]/div/div[1]/div[2]/div/div/div/div[4]/input[1]').send_keys('chekk14@gmail.com')
+driver.find_element(By.XPATH,'//*[@id="__next"]/div/div[1]/div[2]/div/div/div/div[4]/input[2]').send_keys('Legacy87!!')
+
+time.sleep(3)
+
+driver.find_element(By.XPATH,'//*[@id="__next"]/div/div[1]/div[2]/div/div/div/div[6]').click()
+
+time.sleep(3)
+
+#현재 페이지 주소 읽기
+#variable_url = driver.current_url
+variable_url = 'https://www.bomtoon.com/bom/comic/weekly'
+
+driver.get(variable_url)
+
+# json 정보 추출
+
+
+header = { 'User-Agent' : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+'referer' : 'https://www.bomtoon.com/bom/comic/weekly',
+'X-Balcony-Id' : 'BOMTOON_COM',
+'id' : '7861785',
+'token' : 'eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IkVyM29rMFZDVGtSWDN3SG9pRm1SWngrWU54NjlFWGNnQW9rWGpodmNlSjA9Iiwic25zUHJvdmlkZXIiOiJIMSt0VHVPRENZQUN2RSs3cDRiTUdRPT0iLCJpc0FkdWx0IjoiY2FGZkVNNGdFSFJmV3dteVQzQjF5Zz09IiwidXNlcklkIjoiNjVxMXV3WEF4cWVrNzk5WHk3VFp0UT09IiwidXVpZCI6ImlaU24vNUlzRmpId1Bmd3FRMlJOODFOcjIyZ1F2Nnk1NFlOMTA3bUkrNDBMVG5ueXdsLzJuYzlUQkZWZGZFYlQiLCJpYXQiOjE3MTE2NTcxMTEsImV4cCI6MTcxMTc0MzUxMX0.AvCTnb7tC_7Cw7Ryjv4zjn22NYH3MeT-k44pdOLJ9nI'
+}
+
+id = []
+alias = []
+title = []
+creators = []
+
+wb_dic = {}
+
+wbdays = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
+
+# get 방식 정보추출_웹툰 id
+for wbday in wbdays:
+    contentsIds = ''
+    g_url = 'https://www.bomtoon.com/api/balcony-api-v2/contents/tab/schedule/comic?'
+
+# 일단 월요일 데이터(작품id//id, 작품url//alias, 작품명//title, 작가//creators) 추출
+# 월요일 링크
+    params = {
+    'groupMenu' : wbday,#{wbdays}
+    'isIncludeTen' : 'false',
+    'sort' : 'POPULAR',
+    'adultToggle' : 'false',
+    }
+
+# 월요일 작품id 추출
+    g_resp = requests.get(g_url, headers=header, params=params)
+    g_soup = bs(g_resp.content, 'html.parser')
+    g_jsn = json.loads(g_soup.text)
+    contentsIds = g_jsn['data']
+
+# contentsIds 문자열 변환
+    g_result = ', '.join(['{}'.format(item) for item in contentsIds])
+
+    time.sleep(3)
+
+# 월요일 작품 id 삽입
+    payload = {"contentsIds" : g_result, "contentsThumbnailType" : "VERTICAL,MAIN,SQUARE"}
+
+# 월요일 전체 작품 디테일 추출
+    p_url = 'https://www.bomtoon.com/api/balcony-api-v2/contents/tab/details'
+    p_resp = requests.post(p_url, headers=header, json=payload)
+    p_soup = bs(p_resp.content, 'html.parser')
+
+    p_jsn = json.loads(p_soup.text)
+
+    datas = p_jsn['data']
+
+# len(datas) = 28
+
+    for i in range(len(datas)):
+        id.append(datas[i]['id'])
+        alias.append(datas[i]['alias'])
+        title.append(datas[i]['title'])
+        creators.append(datas[i]['creators'])
+
+#작품 디테일 문자열로 가공
+
+        time.sleep(1)
+
+# # 작품의 전체 화수 확인
+
+        t_url = f'https://www.bomtoon.com/api/balcony-api-v2/contents/{alias[i]}?isNotLoginAdult=false&isPorch=false'
+        t_resp = requests.get(t_url, headers = header)
+        t_jsn = json.loads(t_resp.text)
+        t_nums = t_jsn['data']['episodes']
+        wb_dic[f"{alias[i]}"] = {"wb_epi" : []}
+        wb_dic[f'{alias[i]}']['comment']= []
+        wb_dic[f'{alias[i]}']['nickname']= []
+        wb_dic[f'{alias[i]}']['likeCount']= []
+        wb_dic[f'{alias[i]}']['subTitle'] = []
+        wb_dic[f'{alias[i]}']['title']= []
+        wb_dic[f'{alias[i]}']['wbdays']= []
+    
+        for j in tqdm(range(len(t_nums))) :
+            wb_dic[f'{alias[i]}']["wb_epi"].append(t_nums[j]['alias'])
+                
+            ex_url = f'https://www.bomtoon.com/api/balcony-api/comment/contents/{alias[i]}/{t_nums[j]['alias']}?isBest=true&page=0'
+            ex_resp = requests.get(ex_url, headers = header)
+            ex_jsn = json.loads(ex_resp.text)
+            
+            if ex_jsn['data'] == None:
+                continue
+            else :
+                ex_tp = ex_jsn['data']['comment']['totalPages'] # 총 댓글 페이지 수 추출
+            
+            time.sleep(1)
+            
+            # 각 화 댓글, 닉네임, 종아요 수, 에피소드, 타이틀 추출
+            for k in range(int(ex_tp)):
+                re_url = f'https://www.bomtoon.com/api/balcony-api/comment/contents/{alias[i]}/{t_nums[j]['alias']}?isBest=true&page={k}'
+                re_resp = requests.get(re_url, headers = header)
+                re_jsn = json.loads(re_resp.text)
+                re_reply = re_jsn['data']['comment']['numberOfElements']
+
+                for h in range(int(re_reply)):
+                    wb_dic[f'{alias[i]}']['comment'].append(re_jsn['data']['comment']['content'][h]['comment'])
+                    wb_dic[f'{alias[i]}']['nickname'].append(re_jsn['data']['comment']['content'][h]['nickname'])
+                    wb_dic[f'{alias[i]}']['likeCount'].append(re_jsn['data']['comment']['content'][h]['likeCount'])
+                    wb_dic[f'{alias[i]}']['subTitle'].append(re_jsn['data']['comment']['content'][h]['subTitle'])
+                    wb_dic[f'{alias[i]}']['title'].append(re_jsn['data']['comment']['content'][h]['title'])
+                    wb_dic[f'{alias[i]}']['wbdays'].append(wbday)
+
+wb_dic
