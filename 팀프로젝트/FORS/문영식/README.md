@@ -16,4 +16,6 @@ dataset 라이브러리 load_datasets 함수 분석 : 파인튜닝에 사용될 
 
 
 # Gemma로 한국어 요약하기.ipynb : 나중에 FORS_문영식.ipynb에 정리해서 추가할 예정
+랭체인 + GPT 사용해서 시스템메세지로 요약해달라하면 쉽게 해결 가능..
+
 # LLM instruction tuning 모델 만들기.ipynb : 나중에 FORS_문영식.ipynb에 정리해서 추가할 예정
